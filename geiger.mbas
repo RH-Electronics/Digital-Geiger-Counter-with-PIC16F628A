@@ -1,0 +1,191 @@
+program geiger
+
+' Declarations section
+
+' Lcd module connections
+dim LCD_RS as sbit at RA1_bit
+    LCD_EN as sbit at RA0_bit
+    LCD_D4 as sbit at RB7_bit
+    LCD_D5 as sbit at RB6_bit
+    LCD_D6 as sbit at RB5_bit
+    LCD_D7 as sbit at RB4_bit
+
+dim LCD_RS_Direction as sbit at TRISA1_bit
+    LCD_EN_Direction as sbit at TRISA0_bit
+    LCD_D4_Direction as sbit at TRISB7_bit
+    LCD_D5_Direction as sbit at TRISB6_bit
+    LCD_D6_Direction as sbit at TRISB5_bit
+    LCD_D7_Direction as sbit at TRISB4_bit
+' End Lcd module connections
+
+' Define Variables
+dim txt as string[11]                 ' define cpm text length
+
+
+    cnt as longint                  ' define variables for calculation
+    cpm as longint
+    freq as longint
+    dose as longint
+    timer_cnt as integer
+    freq_read_done as bit
+    ch as word
+    period_flag as bit
+    period as integer
+    'arduino as bit
+    
+    'alarm as sbit at RA3_bit
+
+
+ sub procedure interrupt()             ' Interrupt Settings
+  if (TMR1IF_bit = 1) then             ' Test Timer1 interrupt flag
+
+    if(timer_cnt = period) then        ' When 5 or 10 second time elapsed
+      freq = cnt                       ' Store result in freq
+      cnt = 0                          ' Reset counter
+      timer_cnt = 0                    ' Reset timer_cnt
+      freq_read_done = 1               ' Set flag = 1
+     else
+      inc(timer_cnt)                   ' Increment timer_cnt if not elapsed 5 or 10 second
+    end if
+
+    TMR1H = 0xCF                       ' First write higher byte to TMR1
+    TMR1L = 0x2C                       ' Write lower byte to TMR1
+    TMR1IF_bit = 0                     ' Clear Timer1 interrupt flag
+  end if
+
+  if(INTF_bit) then                    ' Test RB0/INT interrupt flag
+    cnt = cnt + 1                      ' Count interrupts on RB0/INT pin
+    PORTA.3 = 1
+    nop
+    PORTA.3 = 0
+    INTF_bit = 0                       ' Clear RB0/INT interrupt flag
+
+  end if
+end sub
+
+const character as byte[8] = (17,17,17,17,25,22,16,16)               'Custom charachter
+
+sub procedure CustomChar(dim pos_row as byte, dim pos_char as byte)
+  dim i as byte
+    Lcd_Cmd(64)
+    for i = 0 to 7
+      Lcd_Chr_CP(character[i])
+    next i
+    Lcd_Cmd(_LCD_RETURN_HOME)
+    Lcd_Chr(pos_row, pos_char, 0)
+end sub
+
+main:
+'   Main program
+
+  freq      = 0
+  cnt       = 0
+  timer_cnt = 0
+  freq_read_done = 0
+
+  TRISA = %00000100             ' Define PORTA
+  TRISB = %00000001             ' Define PORTB
+  CMCON = 0x07                  ' Disable Comparator
+  PORTA.3 = 0
+  
+
+  UART1_Init(2400)              ' Initialize UART
+  Delay_ms (150)                ' Wait 150ms
+
+  Lcd_Init()                     ' Initialize Lcd
+  Delay_ms (20)                  ' Wait 20ms
+  Lcd_Cmd(_LCD_CLEAR)            ' Clear display
+  Lcd_Cmd(_LCD_CURSOR_OFF)       ' Cursor off
+
+  Lcd_Out(1, 2, "RadioHobbyStore")  ' Write text in first row
+  Lcd_Out(2, 4, "Electronics")   ' Write text in second row
+  Delay_ms (1500)                ' Wait 1500 ms
+  Lcd_Cmd(_LCD_CLEAR)            ' Clear display
+  Lcd_Out(1, 2, "Geiger Counter")' Write text in first row
+  Lcd_Out(2, 3, "version 1.02")  ' Write text in second row
+  Delay_ms (1500)                 ' Wait 1500 ms
+  
+  Lcd_Cmd(_LCD_CLEAR)            ' Clear display
+  Lcd_Out(1, 1, " Arduino enJoy! ")' Write text in first row
+  Delay_ms (1500)                 ' Wait 1500 ms
+
+  Lcd_Cmd(_LCD_CLEAR)            ' Clear display
+  Lcd_Out(1, 1, "CPM:")          ' Write text
+  Lcd_Out(2, 2, "Sv/h:")          ' Write text
+  CustomChar (2, 1)              ' Write custom character u
+
+
+    if PORTA.2 = 1 then          ' test period jumper on RB5
+     period_flag = 1             ' if high then measuring time is 10 seconds
+     period = 99                 ' else measuring time is 5 seconds
+     else
+     period_flag = 0
+     period = 49
+    end if
+
+      if period_flag = 1 then    ' Print on LCD symbol for 5 or for 10 seconds period
+        Lcd_Chr (2, 16, "S")     ' S for 10 seconds "slow"
+        else                     ' F for 5 seconds "fast"
+        Lcd_Chr (2, 16, "F")
+      end if
+
+                                       ' Timer Settings:
+
+  TMR1H = 0xCF                         ' First write higher byte to TMR1
+  TMR1L = 0x2C                         ' Write lower byte to TMR1
+  T1CON = 0x35                         ' Timer1 prescaler settings
+  TMR1IE_bit = 1                       ' Enable Timer1 overflow interrupt
+
+  INTEDG_bit = 0                       ' Interrupt on RB0/INT pin is edge triggered, setting it on low edge
+
+  INTCON = 0xD0                        ' Set GIE, PIE, INTE
+
+  while(1)                             ' Endless loop start
+    if (freq_read_done) then           ' When interrupt occur
+      GIE_bit = 0                      ' Disable interrupts
+      freq_read_done = 0               ' Set flag = 0
+
+       if period_flag = 1 then
+        cpm = freq * 6                 ' Convert frequency to CPM; CPM = freq * ( 60 sec / measuring period)
+        else
+        cpm = freq * 12
+       end if
+
+      dose = cpm * 57                  ' Convert CPM to uSv/h (cpm * conversion factor  = uSv/h); Conversion Factor for SBM20 is 0.0057
+      LongIntToStr(cpm, txt)              ' Convert freq to a string
+      ltrim (txt)
+      Lcd_Out (1, 5, "       ")
+      Lcd_Out (1, 5, txt)              ' Write CMP text on LCD
+
+      ch = dose div 1000000            ' Dose uSv/h extraction and print
+      Lcd_Chr (2, 7, 48+ch)
+      ch = (dose div 100000) mod 10
+      Lcd_Chr_CP (48+ch)
+      ch = (dose div 10000) mod 10
+      Lcd_Chr_CP (48+ch)
+      Lcd_Chr_CP (".")
+      ch = (dose div 1000) mod 10
+      Lcd_Chr_CP (48+ch)
+      ch = (dose div 100) mod 10
+      Lcd_Chr_CP (48+ch)
+      ch = (dose div 10) mod 10
+      Lcd_Chr_CP (48+ch)
+     
+
+      if cpm>999 then           ' Alarm treshold set
+       Lcd_Out(1, 12, "ALERT")            ' Alarm LCD print
+
+       else
+       Lcd_Out(1, 12, "     ")
+      end if
+
+      UART1_Write_Text(txt)            ' Sending CPM result via UART
+
+
+      GIE_bit = 1                      ' Enable interrupts
+
+    end if
+  wend                                 ' Endless loop end
+
+
+end.
