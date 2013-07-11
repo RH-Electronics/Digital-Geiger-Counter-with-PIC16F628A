@@ -9,5 +9,7 @@ Compiler: MikroElectronica MicroBasic free version
 
 This program is used with Geiger Counter DIY Kit from RadioHobbyStore. You can purchase DIY Kit with flashed PIC16F628A on http://radiohobbystore.com
 
-
+geiger.mbas - mikrobasic source file
+ard-geiger.hex - firmware 1.02 compatible with Arduino on pin "Line"
+rel-geiger.hex - firmware 1.02 compatible with Relay Module on pin "Line"
 
