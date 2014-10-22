@@ -7,6 +7,9 @@ Version: 1.01
 Author: Alexey Boguslavsky
 Compiler: MikroElectronica MicroBasic free version
 
+The electrical circuit of this kit was taken from BroHogan project:
+https://sites.google.com/site/diygeigercounter/
+
 This program is used with Geiger Counter DIY Kit from RadioHobbyStore. You can purchase DIY Kit with flashed PIC16F628A on http://radiohobbystore.com
 
 geiger.mbas - mikrobasic source file
