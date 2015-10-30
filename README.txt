@@ -4,7 +4,7 @@ Digital Geiger Counter with PIC16F628A
 Geiger Counter with UART Communication and LCD
 Copyright (c) 2012 RadioHobbyStore Electronics http://rhelectronics.net
 Version: 1.01
-Author: Alexey Boguslavsky
+Author: Alexey Bogoslavsky
 Compiler: MikroElectronica MicroBasic free version
 
 The electrical circuit of this kit was taken from BroHogan project:
